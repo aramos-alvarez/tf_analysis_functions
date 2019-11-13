@@ -8,7 +8,7 @@ Created on Wed Nov 13 12:00:02 2019
 
 import os
 
-os.chdir('/home/aramos/Desktop/MachineLearning_Learning/Tensor_flow_1/user_functions')
+#os.chdir('/home/aramos/Desktop/MachineLearning_Learning/Tensor_flow_1/user_functions')
 
 import matplotlib.pyplot as plt
 import numpy as np
