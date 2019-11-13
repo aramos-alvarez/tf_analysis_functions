@@ -38,6 +38,7 @@ def correlation_figure(dataframe):
     ax_corr = figure_corr.add_subplot(1,1,1)
     _ = sns.heatmap(correlation, ax = ax_corr, annot = True)
     figure_corr.canvas.draw()
+    plt.pause(0.01)
     return ax_corr
 
 
@@ -49,6 +50,7 @@ def scatter_matrix(dataframe):
 
     _ = pd.plotting.scatter_matrix(dataframe, ax = ax_scatter)
     figure_scatter.canvas.draw()
+    plt.pause(0.01)
     return ax_scatter
 
 
@@ -83,8 +85,7 @@ def preprocess_data(dataframe, target_name):
     return dataframe_temp, target
 
 
-target_name = 'median_house_value'
-feature_dataframe, target_serie = preprocess_data(california_housing_dataframe, target_name)
+
 
 
 def preprocess_data_for_classifier(dataframe, target_name, threshold):
@@ -260,7 +261,7 @@ def construct_feature_columns(dataframe, estimator,
             
                 print(features_crossed_temporal_names)
                 print('----------------')
-                display.display(features_crossed_temporal)
+                #display.display(features_crossed_temporal)
                 feature_cro = tf.feature_column.crossed_column(features_crossed_temporal, 
                                                      hash_bucket_size = hash_bucket)
                 
@@ -277,6 +278,10 @@ def construct_feature_columns(dataframe, estimator,
 
 def optimizer_creator(learning_rate, clip_gradient, optimizer = 'GradientDescent', regularization = 'L2', 
                      regularization_strength = None):
+    
+    
+    #optimizer could be: Adagrad, Ftrl, GradientDescent
+    
     
     #L2 Regularization
     if regularization == 'L2':
@@ -301,7 +306,8 @@ def optimizer_creator(learning_rate, clip_gradient, optimizer = 'GradientDescent
 
 
         except (ValueError, UnboundLocalError):
-            print('Optimizer bad defined')
+            print('Optimizer Bad Defined !! \n------------\n consider some of: Adagrad, Ftrl, GradientDescent')
+            my_optimizer = None
     
     
     #L1 regularization
@@ -316,11 +322,11 @@ def optimizer_creator(learning_rate, clip_gradient, optimizer = 'GradientDescent
             print('Optimizer used with L1 regularization (only valid): '  + optimizer)
 
         except (ValueError, UnboundLocalError):
-            print('Optimizer bad defined')
+            print('Optimizer Bad Defined !! \n------------\n consider some of: Adagrad, Ftrl, GradientDescent')
 
     #Bad defined the regularization
     else:
-        print('But defined the regularization, try: L1 or L2')
+        print('Bad defined the regularization, try: L1 or L2')
         my_optimizer = None
             
             
@@ -328,7 +334,285 @@ def optimizer_creator(learning_rate, clip_gradient, optimizer = 'GradientDescent
 
 
 
+def considered_elements(dataframe, list_numeric, list_categorical):
+    
+    #Function which return a list of numerical and categorical ONLY if this elements are in the dataframe
+    if list_categorical == None:
+        print('CATEGORICAL LIST EMPTY')
+        list_categorical = []
+    if list_numeric == None:
+        print('NUMERICAL LIST EMPTY')
+        list_numeric = []
+    
+    
+    list_elements = list_numeric
+    considered_elements_numeric = []
+    considered_elements_categorical = []
+    
+    for element in list_elements:
+        if element in dataframe:
+            considered_elements_numeric.append(element)
+        else:
+            display.display(str(element) + ' NOT IN DATAFRAME')
+    
+        list_elements = list_categorical
+    for element in list_elements:
+        if element in dataframe:
+            considered_elements_categorical.append(element)
+        else:
+            display.display(str(element) + ' NOT IN DATAFRAME')
+            
+    if len(considered_elements_numeric) == 0:
+        considered_elements_numeric = None
+    if len(considered_elements_categorical) == 0:
+        considered_elements_categorical = None
+    return considered_elements_numeric, considered_elements_categorical
 
+
+def model_creator(dataframe, list_numeric, bucketize, dict_variables_bucketized, 
+                  list_categorical, list_crossed_features, hash_bucket_size, 
+                  estimator, learning_rate, clip_gradient, optimizer = 'GradientDescent', hidden_units = None,
+                  regularization = 'L2',  regularization_strength = None, n_classes = 2):
+    
+    #estimator should be: LinearRegressor, LinearClassifier, DNNRegressor (in the case of Neural Network)
+    my_optimizer = optimizer_creator(learning_rate, clip_gradient, optimizer, regularization, 
+                     regularization_strength)
+    
+    
+    
+    #chekc if all elements in list numeric and list_categorical are in the dataframe
+    list_numeric, list_categorical = considered_elements(dataframe, list_numeric, list_categorical)
+    
+    print('\n..............Trying to construct feature with .........\n')
+    print('Numeric \n---------')
+    display.display(list_numeric)
+    print('Categorical \n---------')
+    display.display(list_categorical)
+    print('----------------------------')
+    feature_columns = construct_feature_columns(dataframe, estimator, 
+                                                list_numeric = list_numeric, bucketize = bucketize, dict_variables_bucketized = dict_variables_bucketized, 
+                              list_categorical = list_categorical, list_crossed_features = list_crossed_features,
+                                                hash_bucket_size = hash_bucket_size)
+
+    
+    
+    display.display(feature_columns)
+    if estimator == 'LinearRegressor':
+        
+        print('\n Estimator:   ' + estimator)
+        model = tf.estimator.LinearRegressor(feature_columns = feature_columns, optimizer = my_optimizer)
+        
+        
+    elif estimator == 'LinearClassifier':
+        print('\n Estimator:   ' + estimator)
+        model = tf.estimator.LinearClassifier(feature_columns = feature_columns, n_classes = n_classes,
+                                              
+                                              optimizer = my_optimizer)
+        
+        
+    elif estimator == 'DNNRegressor':
+        print('\n Estimator:   ' + estimator + ' with hidden_units:...' + str(hidden_units))
+        model = tf.estimator.DNNRegressor(feature_columns = feature_columns, hidden_units = hidden_units , 
+                                          optimizer = my_optimizer)
+        
+        
+    
+    else:
+        print('\n BAD DEFINED ESTIMATOR, use: LinearRegressor, LinearClassifier or DNNRegressor')
+    
+    
+
+    return model
+
+
+
+def training_model(steps, periods, feature_dataframe, target_serie, percent_training_data, 
+                   list_numeric, list_categorical, estimator, learning_rate, batch_size, buffer_size, 
+                   bucketize = False, dict_variables_bucketized = {}, 
+                  list_crossed_features = None, hash_bucket_size = [], 
+                  optimizer = 'GradientDescent',
+                   clip_gradient = 5, 
+                   n_classes = 2,
+                   hidden_units = None,
+                  regularization = 'L2',  regularization_strength = None):
+
+
+    #steps---> number of times that the model will be trained
+    #periods--> how many times the model will be evaluate during the running (this is not a hyperparameter
+    #           its is only a parameter to see the graph of training)
+    # n_classes is used in classification problems
+    
+    steps_per_period = steps / periods
+    
+    
+    total_raws = feature_dataframe.count()[0]
+    
+    #DATAFRAME FOR TRAINING
+    feature_dataframe_training = feature_dataframe.head(int(percent_training_data/ 100 * total_raws))
+    target_serie_training = target_serie.head(int(percent_training_data / 100 * total_raws))
+    
+    #DATAFRAME FOR VALIDATION
+    feature_dataframe_validation = feature_dataframe.tail(int(1-(percent_training_data/ 100) * total_raws))
+    target_serie_validation = target_serie.tail(int(1-(percent_training_data/ 100) * total_raws))
+    
+    
+    
+    #train input fn
+    num_epochs = None
+    shuffle = True
+
+    train_input = lambda: my_input_fn(feature_dataframe_training , target_serie_training,
+                              batch_size, num_epochs, shuffle, buffer_size)
+    
+    #predict training input fn
+    num_epochs = 1
+    shuffle = False
+    batch_size = 1
+    
+    predict_training_input = lambda: my_input_fn(feature_dataframe_training , target_serie_training, 
+                                         batch_size, num_epochs,shuffle, buffer_size)
+    
+    
+    
+    #predict validation input fn
+    predict_validation_input = lambda: my_input_fn(feature_dataframe_validation , target_serie_validation, 
+                                         batch_size, num_epochs,shuffle, buffer_size)
+    
+    
+    #MODEL CREATION
+    
+    print(bucketize)
+    model = model_creator(feature_dataframe_training , list_numeric, bucketize, dict_variables_bucketized, 
+                  list_categorical, list_crossed_features, hash_bucket_size, 
+                  estimator, learning_rate, clip_gradient, optimizer, hidden_units,
+                  regularization ,  regularization_strength )
+    
+    
+    #FIGURE CONSTRUCTOR FOR THE TRAINING DATA
+    plt.close('TRAINING MODEL')
+    figure_training = plt.figure('TRAINING MODEL', figsize = (8,8))
+    ax_training = figure_training.add_subplot(1,1,1)
+    
+    rmse_training_list = []
+    rmse_validation_list = []
+    
+    log_loss_training_list = []
+    log_loss_validation_list = []
+    #TRAINING THE MODEL BY STEPS
+    print('TRAINING MODEL...\n')
+    if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
+        print('Minimize Root Mean Squared Error \n')
+    elif estimator == 'LinearClassifier':
+        print('Minimize Log Loss function (clasification problem) \n')
+        
+    else:
+        print('ERROR defining estimator')
+    
+    
+    for period in range(0, periods):
+        
+        
+        
+        _ = model.train(input_fn = train_input, steps = steps_per_period)
+        
+        #take a break to predict values and calculate the error
+        prediction_training = model.predict(input_fn = predict_training_input)
+        prediction_validation = model.predict(input_fn = predict_validation_input)
+        
+        
+        #Now depending of the estimator it is neccessary see some items into predictions
+        
+        if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
+            
+            ax_training.set_title('Root Mean Squared Error')
+            prediction_training = np.array([item['predictions'][0] for item in prediction_training])
+            prediction_validation = np.array([item['predictions'][0] for item in prediction_validation])
+            
+            
+            rmse_training = np.sqrt(abs(metrics.mean_squared_error(target_serie_training, 
+                                                                   prediction_training)))
+            
+            
+            
+            
+            print('PERIOD ' + str(period) + '...rmse_training: ' + str(np.round(rmse_training, 2)))
+                  
+            rmse_training_list.append(rmse_training)
+            
+            rmse_validation = np.sqrt(abs(metrics.mean_squared_error(target_serie_validation, 
+                                                                   prediction_validation)))
+            rmse_validation_list.append(rmse_validation)
+            
+            
+            
+            #plotting
+            ax_training.clear()
+            ax_training.plot(rmse_training_list, '-o', color = 'blue', label = 'Training data')
+            ax_training.plot(rmse_validation_list, '-x', color = 'red', label = 'Validation data')
+            
+            figure_training.canvas.draw()
+            plt.pause(0.01)
+            
+            
+        
+        elif estimator == 'LinearClassifier':
+            
+            
+            label_encoder = preprocessing.LabelEncoder()
+            label_encoder.fit(target_serie_training)
+            
+            
+            ax_training.set_title('Log Loss')
+            
+            prediction_training = np.array([item['class_ids'][0] for item in prediction_training])
+            prediction_validation = np.array([item['class_ids'][0] for item in prediction_validation])
+            
+            #In the case of the output is a string I should preprocess the data before to convert to 
+            #one hot
+            #Encoding the prediction
+            prediction_training_encoded = label_encoder.transform(prediction_training)
+            prediction_validation_encoded = label_encoder.transform(prediction_validation)
+            
+            
+            
+            #convert the prediction in one hot encoding ---> to categorical
+            prediction_training_one_hot = tf.keras.utils.to_categorical(prediction_training_encoded,
+                                                                         n_classes)
+            prediction_validation_one_hot = tf.keras.utils.to_categorical(prediction_validation_encoded,
+                                                                          n_classes)
+            
+            
+            
+            log_loss_training = metrics.log_loss(target_serie_training, prediction_training_one_hot)
+            log_loss_training_list.append(log_loss_training)
+            
+
+            
+            log_loss_validation = metrics.log_loss(target_serie_validation, prediction_validation_one_hot)
+            log_loss_validation_list.append(log_loss_validation)
+            
+            print('PERIOD ' + str(period) + '...log_loss_training: ' + str(np.round(log_loss_training,4)))
+            
+            
+            #plotting
+            ax_training.clear()
+            ax_training.plot(log_loss_training_list, '-o', color = 'blue', label = 'Training data')
+            ax_training.plot(log_loss_validation_list, '-x', color = 'red', label = 'Validation data')
+            
+            figure_training.canvas.draw()
+            plt.pause(0.01)
+            
+            
+            
+        else:
+            print('NOT WELL ESTIMATOR WAS DEFINED!')
+        
+        
+    ax_training.legend()        
+    
+    
+    print('MODEL TRAINED!!')
+    return model
 
 
 
@@ -374,7 +658,7 @@ if __name__ == '__main__':
     #dataframe with categorical to check construct columns
     dataframe_with_categorical = california_housing_dataframe.copy()
     threshold = 200000
-    dataframe_with_categorical['high_price'] = (california_housing_dataframe['median_house_value'] > threshold).astype(str)
+    dataframe_with_categorical['high_price'] = (dataframe_with_categorical['median_house_value'] > threshold).astype(str)
     display.display(dataframe_with_categorical.head())
     
     #check construct_feature_columns
@@ -387,3 +671,196 @@ if __name__ == '__main__':
         
     display.display(dataframe_with_categorical.head())
     display.display(feature_column)
+    
+#%%
+
+    learning_rate = 0.005
+    clip_gradient = 5
+    optimizer_creator(learning_rate, clip_gradient, optimizer = 'Adagrad',
+                      regularization = 'L1', regularization_strength = 0.005)        
+    
+    
+    
+#%%
+    
+    #Preprocess data for linear regression problme
+    dataframe = california_housing_dataframe.copy()
+    target_name = 'median_house_value'
+    feature_dataframe, target_serie = preprocess_data(dataframe, target_name)
+    display.display(feature_dataframe.head())
+    display.display(target_serie.head())
+    
+#%%
+    
+    
+    #CHECKING THE MODEL CREATOR FUNCTION
+    dataframe = feature_dataframe.copy()
+    list_numeric = ['median_income', 'population']
+    bucketize = True
+    dict_variables_bucketized = {'total_rooms': 10, 'population': 8, 'median_house_value': 10, 'median_income': 7}
+    list_categorical = ['high_y']
+    list_crossed_features = None #[['median_income', 'population']]
+    hash_bucket_size = [100]
+    estimator = 'LinearClassifier'
+    learning_rate = 0.005
+    clip_gradient = 5
+    optimizer  = 'Ftrl'
+    hidden_units  = [200,10]
+    regularization = 'L2'
+    regularization_strength = None
+    n_classes = 5
+    
+    
+    
+    
+    model_creator(dataframe, list_numeric, bucketize, dict_variables_bucketized, 
+                      list_categorical, list_crossed_features, hash_bucket_size, 
+                      estimator, learning_rate, clip_gradient, optimizer , hidden_units,
+                      regularization ,  regularization_strength, n_classes)
+
+
+
+#%%
+    
+    
+    steps = 10
+    periods = 10
+    feature_dataframe = feature_dataframe.copy()
+    target_serie = target_serie.copy()
+    percent_training_data = 80
+    list_numeric = ['median_income', 'population', 'total_rooms']
+    list_categorical = ['hih']
+    estimator = 'LinearRegressor'
+    learning_rate = 0.005
+    batch_size = 100
+    buffer_size = 1000
+    
+    
+    
+    
+    bucketize = True 
+    dict_variables_bucketized = {'median_income': 10, 'population': 10}                
+    list_crossed_features = [['median_income', 'population']]
+    hash_bucket_size = [100] 
+    optimizer = 'GradientDescent'
+    clip_gradient = 5 
+    n_classes = 2
+    hidden_units = None
+    regularization = 'L2'  
+    regularization_strength = None
+    
+    
+    
+    
+    training_model(steps, periods, feature_dataframe, target_serie, percent_training_data, 
+                   list_numeric, list_categorical, estimator, learning_rate, batch_size, buffer_size, 
+                   bucketize = bucketize, dict_variables_bucketized = dict_variables_bucketized, 
+                  list_crossed_features = list_crossed_features, hash_bucket_size = hash_bucket_size, 
+                  optimizer = optimizer,
+                   clip_gradient = clip_gradient, 
+                   n_classes = n_classes,
+                   hidden_units = hidden_units,
+                  regularization = regularization,  regularization_strength = regularization_strength)
+        
+    
+#%%
+    
+    
+    steps = 10
+    periods = 10
+    feature_dataframe = feature_dataframe_classifier.copy()
+    target_serie = target_serie_classifier.copy()
+    percent_training_data = 80
+    list_numeric = ['median_income', 'population']
+    list_categorical = ['high_price']
+    estimator = 'LinearClassifier'
+    learning_rate = 0.005
+    batch_size = 100
+    buffer_size = 1000
+    
+    
+    
+    
+    bucketize = True 
+    dict_variables_bucketized = {'median_income': 10, 'population': 10}                
+    list_crossed_features = [['median_income', 'population']]
+    hash_bucket_size = [100] 
+    optimizer = 'Ftrl'
+    clip_gradient = 5 
+    n_classes = 2
+    hidden_units = None
+    regularization = 'L2'  
+    regularization_strength = None
+
+
+
+
+    training_model(steps, periods, feature_dataframe, target_serie, percent_training_data, 
+                   list_numeric, list_categorical, estimator, learning_rate, batch_size, buffer_size, 
+                   bucketize = bucketize, dict_variables_bucketized = dict_variables_bucketized, 
+                  list_crossed_features = list_crossed_features, hash_bucket_size = hash_bucket_size, 
+                  optimizer = optimizer,
+                   clip_gradient = clip_gradient, 
+                   n_classes = n_classes,
+                   hidden_units = hidden_units,
+                  regularization = regularization,  regularization_strength = regularization_strength)
+    
+    
+    
+    
+    
+#%%
+    
+
+
+    steps = 10
+    periods = 10
+    feature_dataframe = feature_dataframe.copy()
+    target_serie = target_serie.copy()
+    percent_training_data = 80
+    list_numeric = ['median_income', 'population', 'total_rooms']
+    list_categorical = ['high_price']
+    estimator = 'DNNRegressor'
+    learning_rate = 0.005
+    batch_size = 100
+    buffer_size = 1000
+    
+    
+    
+    
+    bucketize = True 
+    dict_variables_bucketized = {'median_income': 10, 'population': 10}                
+    list_crossed_features = [['median_income', 'population']]
+    hash_bucket_size = [100] 
+    optimizer = 'Ftrl'
+    clip_gradient = 5 
+    n_classes = 2
+    hidden_units = [10, 10]
+    regularization = 'L2'  
+    regularization_strength = None
+
+    
+    training_model(steps, periods, feature_dataframe, target_serie, percent_training_data, 
+               list_numeric, list_categorical, estimator, learning_rate, batch_size, buffer_size, 
+               bucketize = bucketize, dict_variables_bucketized = dict_variables_bucketized, 
+              list_crossed_features = list_crossed_features, hash_bucket_size = hash_bucket_size, 
+              optimizer = optimizer,
+               clip_gradient = clip_gradient, 
+               n_classes = n_classes,
+               hidden_units = hidden_units,
+              regularization = regularization,  regularization_strength = regularization_strength)
+    
+    
+    
+#%%
+    metrics.log_loss([0, 1], [0, 1])
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
