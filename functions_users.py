@@ -8,7 +8,7 @@ Created on Wed Nov 13 12:00:02 2019
 
 import os
 
-os.chdir('/home/aramos/Desktop/MachineLearning_Learning/Tensor_flow_1/user_functions')
+#os.chdir('/home/aramos/Desktop/MachineLearning_Learning/Tensor_flow_1/user_functions')
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -54,7 +54,18 @@ def scatter_matrix(dataframe):
     return ax_scatter
 
 
-#preprocess data
+
+
+def plot_categorical_counts(dftrain, column_categorical_name):
+    
+    plt.close('Categorical var: ' + column_categorical_name )
+    figure_categorical_sex = plt.figure('Categorical var: ' + column_categorical_name )
+    ax_categorical_sex = figure_categorical_sex.add_subplot(1,1,1)
+    print(dftrain[column_categorical_name].value_counts())
+    _ = dftrain[column_categorical_name].value_counts().plot(ax = ax_categorical_sex, kind = 'barh')
+    figure_categorical_sex.canvas.draw()
+    plt.pause(0.01)
+    return ax_categorical_sex
 
 def scaling_serie(serie):
     serie_min = serie.min()
@@ -75,27 +86,7 @@ def scaling_dataframe(dataframe):
     
 
 
-def preprocess_data(dataframe, target_name):
-    
-    dataframe_temp = dataframe.copy()
-    target = dataframe_temp.pop(target_name) / 1000
-    dataframe_temp['rooms_per_person'] = dataframe_temp['total_rooms'] / dataframe_temp['population']
-    dataframe_temp = scaling_dataframe(dataframe_temp)
-    
-    return dataframe_temp, target
 
-
-
-
-
-def preprocess_data_for_classifier(dataframe, target_name, threshold):
-    
-    dataframe_temp = dataframe.copy()
-    target = (dataframe_temp.pop(target_name) > threshold).astype(float)
-    dataframe_temp['rooms_per_person'] = dataframe_temp['total_rooms'] / dataframe_temp['population']
-    dataframe_temp = scaling_dataframe(dataframe_temp)
-    
-    return dataframe_temp, target
 
 
 # prepare the input function
@@ -117,8 +108,25 @@ def my_input_fn(feature_dataframe, target_serie, batch_size, num_epochs, shuffle
 
 
 def get_boundaries_quantile(serie, num_buckets):
+    
+
+    #print('getting_boundaries')
     boundaries = np.arange(0, num_buckets) / num_buckets
     quantile_boundaries = list(serie.quantile(boundaries))
+    
+    
+    
+   # print(quantile_boundaries)
+    
+    #This line is include to avoid problems when you can not boundarized because the number is too big
+    #by reducing the number of buckets in steps of -1
+    while len(quantile_boundaries) != len(set(quantile_boundaries)):
+        num_buckets -= 1
+        boundaries = np.arange(0, num_buckets) / num_buckets
+        quantile_boundaries = list(serie.quantile(boundaries))
+        #print(quantile_boundaries)
+        
+        
     return quantile_boundaries
 
 
@@ -616,248 +624,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
 
 
 
-#%%
 
-if __name__ == '__main__':
-    
-    
-    california_housing_dataframe = pd.read_csv("https://download.mlcc.google.com/mledu-datasets/california_housing_train.csv", sep=",")
-    california_housing_dataframe = california_housing_dataframe.reindex(np.random.permutation(california_housing_dataframe.index))
-    
-#%%
-    #view raws of dataframe
-    dataframe_view(california_housing_dataframe)
-    
-    
-#%%
-    #Scatter and correlation Matrix
-    
-    
-    #Correlation
-    correlation_figure(california_housing_dataframe)
-    
-    #Scatter Matrix
-    
-    scatter_matrix(california_housing_dataframe)
-    
-    
-#%%
-    
-    #Preparing data preprocess for Classification problem
-    dataframe = california_housing_dataframe.copy()
-    target_name = 'median_house_value'
-    threshold = 210000
-    feature_dataframe_classifier, target_serie_classifier = preprocess_data_for_classifier(dataframe, 
-                                                                                       target_name, threshold)
-
-    
-    
-    
-    
-#%%
-    #dataframe with categorical to check construct columns
-    dataframe_with_categorical = california_housing_dataframe.copy()
-    threshold = 200000
-    dataframe_with_categorical['high_price'] = (dataframe_with_categorical['median_house_value'] > threshold).astype(str)
-    display.display(dataframe_with_categorical.head())
-    
-    #check construct_feature_columns
-    list_numeric = ['total_rooms', 'population', 'median_house_value', 'median_income']
-    dict_variables_bucketized = {'total_rooms': 10, 'population': 8, 'median_house_value': 10 }
-    
-    estimator = 'LinearClassifier'
-    feature_column = construct_feature_columns(dataframe_with_categorical, estimator,list_numeric = list_numeric, bucketize = True, dict_variables_bucketized = dict_variables_bucketized, 
-                                  list_categorical = ['high_price'], list_crossed_features = [['median_house_value', 'population'], ['population', 'high_price']], hash_bucket_size = [100, 200])
-        
-    display.display(dataframe_with_categorical.head())
-    display.display(feature_column)
-    
-#%%
-
-    learning_rate = 0.005
-    clip_gradient = 5
-    optimizer_creator(learning_rate, clip_gradient, optimizer = 'Adagrad',
-                      regularization = 'L1', regularization_strength = 0.005)        
-    
-    
-    
-#%%
-    
-    #Preprocess data for linear regression problme
-    dataframe = california_housing_dataframe.copy()
-    target_name = 'median_house_value'
-    feature_dataframe, target_serie = preprocess_data(dataframe, target_name)
-    display.display(feature_dataframe.head())
-    display.display(target_serie.head())
-    
-#%%
-    
-    
-    #CHECKING THE MODEL CREATOR FUNCTION
-    dataframe = feature_dataframe.copy()
-    list_numeric = ['median_income', 'population']
-    bucketize = True
-    dict_variables_bucketized = {'total_rooms': 10, 'population': 8, 'median_house_value': 10, 'median_income': 7}
-    list_categorical = ['high_y']
-    list_crossed_features = None #[['median_income', 'population']]
-    hash_bucket_size = [100]
-    estimator = 'LinearClassifier'
-    learning_rate = 0.005
-    clip_gradient = 5
-    optimizer  = 'Ftrl'
-    hidden_units  = [200,10]
-    regularization = 'L2'
-    regularization_strength = None
-    n_classes = 5
-    
-    
-    
-    
-    model_creator(dataframe, list_numeric, bucketize, dict_variables_bucketized, 
-                      list_categorical, list_crossed_features, hash_bucket_size, 
-                      estimator, learning_rate, clip_gradient, optimizer , hidden_units,
-                      regularization ,  regularization_strength, n_classes)
-
-
-
-#%%
-    
-    
-    steps = 10
-    periods = 10
-    feature_dataframe = feature_dataframe.copy()
-    target_serie = target_serie.copy()
-    percent_training_data = 80
-    list_numeric = ['median_income', 'population', 'total_rooms']
-    list_categorical = ['hih']
-    estimator = 'LinearRegressor'
-    learning_rate = 0.005
-    batch_size = 100
-    buffer_size = 1000
-    
-    
-    
-    
-    bucketize = True 
-    dict_variables_bucketized = {'median_income': 10, 'population': 10}                
-    list_crossed_features = [['median_income', 'population']]
-    hash_bucket_size = [100] 
-    optimizer = 'GradientDescent'
-    clip_gradient = 5 
-    n_classes = 2
-    hidden_units = None
-    regularization = 'L2'  
-    regularization_strength = None
-    
-    
-    
-    
-    training_model(steps, periods, feature_dataframe, target_serie, percent_training_data, 
-                   list_numeric, list_categorical, estimator, learning_rate, batch_size, buffer_size, 
-                   bucketize = bucketize, dict_variables_bucketized = dict_variables_bucketized, 
-                  list_crossed_features = list_crossed_features, hash_bucket_size = hash_bucket_size, 
-                  optimizer = optimizer,
-                   clip_gradient = clip_gradient, 
-                   n_classes = n_classes,
-                   hidden_units = hidden_units,
-                  regularization = regularization,  regularization_strength = regularization_strength)
-        
-    
-#%%
-    
-    
-    steps = 10
-    periods = 10
-    feature_dataframe = feature_dataframe_classifier.copy()
-    target_serie = target_serie_classifier.copy()
-    percent_training_data = 80
-    list_numeric = ['median_income', 'population']
-    list_categorical = ['high_price']
-    estimator = 'LinearClassifier'
-    learning_rate = 0.005
-    batch_size = 100
-    buffer_size = 1000
-    
-    
-    
-    
-    bucketize = True 
-    dict_variables_bucketized = {'median_income': 10, 'population': 10}                
-    list_crossed_features = [['median_income', 'population']]
-    hash_bucket_size = [100] 
-    optimizer = 'Ftrl'
-    clip_gradient = 5 
-    n_classes = 2
-    hidden_units = None
-    regularization = 'L2'  
-    regularization_strength = None
-
-
-
-
-    training_model(steps, periods, feature_dataframe, target_serie, percent_training_data, 
-                   list_numeric, list_categorical, estimator, learning_rate, batch_size, buffer_size, 
-                   bucketize = bucketize, dict_variables_bucketized = dict_variables_bucketized, 
-                  list_crossed_features = list_crossed_features, hash_bucket_size = hash_bucket_size, 
-                  optimizer = optimizer,
-                   clip_gradient = clip_gradient, 
-                   n_classes = n_classes,
-                   hidden_units = hidden_units,
-                  regularization = regularization,  regularization_strength = regularization_strength)
-    
-    
-    
-    
-    
-#%%
-    
-
-
-    steps = 10
-    periods = 10
-    feature_dataframe = feature_dataframe.copy()
-    target_serie = target_serie.copy()
-    percent_training_data = 80
-    list_numeric = ['median_income', 'population', 'total_rooms']
-    list_categorical = ['high_price']
-    estimator = 'DNNRegressor'
-    learning_rate = 0.005
-    batch_size = 100
-    buffer_size = 1000
-    
-    
-    
-    
-    bucketize = True 
-    dict_variables_bucketized = {'median_income': 10, 'population': 10}                
-    list_crossed_features = [['median_income', 'population']]
-    hash_bucket_size = [100] 
-    optimizer = 'Ftrl'
-    clip_gradient = 5 
-    n_classes = 2
-    hidden_units = [10, 10]
-    regularization = 'L2'  
-    regularization_strength = None
-
-    
-    training_model(steps, periods, feature_dataframe, target_serie, percent_training_data, 
-               list_numeric, list_categorical, estimator, learning_rate, batch_size, buffer_size, 
-               bucketize = bucketize, dict_variables_bucketized = dict_variables_bucketized, 
-              list_crossed_features = list_crossed_features, hash_bucket_size = hash_bucket_size, 
-              optimizer = optimizer,
-               clip_gradient = clip_gradient, 
-               n_classes = n_classes,
-               hidden_units = hidden_units,
-              regularization = regularization,  regularization_strength = regularization_strength)
-    
-    
-    
-#%%
-    metrics.log_loss([0, 1], [0, 1])
-    
-    
-    
-    
     
     
     
