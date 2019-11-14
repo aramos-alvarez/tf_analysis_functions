@@ -18,8 +18,8 @@ from IPython import display
 import pandas as pd
 from tensorflow.python.data import Dataset
 import seaborn as sns
-
-tf.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+import time
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 
 def dataframe_view(dataframe):
@@ -54,7 +54,21 @@ def scatter_matrix(dataframe):
     return ax_scatter
 
 
-#preprocess data
+
+
+def plot_categorical_counts(dftrain, column_categorical_name):
+    
+    plt.close('Categorical var: ' + column_categorical_name )
+    figure_categorical_sex = plt.figure('Categorical var: ' + column_categorical_name )
+    ax_categorical_sex = figure_categorical_sex.add_subplot(1,1,1)
+    print(dftrain[column_categorical_name].value_counts())
+    _ = dftrain[column_categorical_name].value_counts().plot(ax = ax_categorical_sex, kind = 'barh')
+    figure_categorical_sex.canvas.draw()
+    plt.pause(0.01)
+    return ax_categorical_sex
+
+
+
 
 def scaling_serie(serie):
     serie_min = serie.min()
@@ -97,8 +111,25 @@ def my_input_fn(feature_dataframe, target_serie, batch_size, num_epochs, shuffle
 
 
 def get_boundaries_quantile(serie, num_buckets):
+    
+
+    #print('getting_boundaries')
     boundaries = np.arange(0, num_buckets) / num_buckets
     quantile_boundaries = list(serie.quantile(boundaries))
+    
+    
+    
+   # print(quantile_boundaries)
+    
+    #This line is include to avoid problems when you can not boundarized because the number is too big
+    #by reducing the number of buckets in steps of -1
+    while len(quantile_boundaries) != len(set(quantile_boundaries)):
+        num_buckets -= 1
+        boundaries = np.arange(0, num_buckets) / num_buckets
+        quantile_boundaries = list(serie.quantile(boundaries))
+        #print(quantile_boundaries)
+        
+        
     return quantile_boundaries
 
 
@@ -461,7 +492,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
     
     #MODEL CREATION
     
-    print(bucketize)
+    
     model = model_creator(feature_dataframe_training , list_numeric, bucketize, dict_variables_bucketized, 
                   list_categorical, list_crossed_features, hash_bucket_size, 
                   estimator, learning_rate, clip_gradient, optimizer, hidden_units,
@@ -484,6 +515,8 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
         print('Minimize Root Mean Squared Error \n')
     elif estimator == 'LinearClassifier':
         print('Minimize Log Loss function (clasification problem) \n')
+        label_encoder = preprocessing.LabelEncoder()
+        label_encoder.fit(target_serie_training)
         
     else:
         print('ERROR defining estimator')
@@ -538,8 +571,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
         elif estimator == 'LinearClassifier':
             
             
-            label_encoder = preprocessing.LabelEncoder()
-            label_encoder.fit(target_serie_training)
+
             
             
             ax_training.set_title('Log Loss')
@@ -597,9 +629,3 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
 
 
 
-    
-    
-    
-    
-    
-    
