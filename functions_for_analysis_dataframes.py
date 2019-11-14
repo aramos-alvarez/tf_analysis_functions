@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Created on Thu Nov 14 11:59:55 2019
+
+@author: aramos
+"""
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
 Created on Wed Nov 13 12:00:02 2019
 
 @author: aramos
@@ -635,6 +643,122 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
     
     print('MODEL TRAINED!!')
     return model
+
+
+
+def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test, how_many, shuffle_test = False):
+    print('Performing prediction with the model: \n-------')
+    
+    
+    feature_dataframe_test = feature_dataframe_test.head(how_many)
+    target_serie_test = target_serie_test.head(how_many)
+    
+    if shuffle_test:
+        feature_dataframe_test = feature_dataframe_test.reindex(np.random.permutation(feature_dataframe_test.index))
+        target_serie_test = target_serie_test.reindex(np.random.permutation(target_serie_test.index))
+    
+
+    
+    num_epochs = 1
+    shuffle = False
+    batch_size = 1
+    buffer_size = 1000
+    predict_test_input = lambda: my_input_fn(feature_dataframe_test , target_serie_test, 
+                                     batch_size, num_epochs,shuffle, buffer_size)
+    
+    print('Performing prediction.........')
+    predictions_test = model.predict(input_fn = predict_test_input)
+    
+    if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
+        predictions_test = np.array([item['predictions'][0] for item in predictions_test])
+        
+        print('Creating Figure object for testing...')
+        plt.close('Predictions Vs Actual values')
+        figure_prediction = plt.figure('Predictions Vs Actual values')
+        ax_prediction = figure_prediction.add_subplot(1,1,1)
+        
+        ax_prediction.plot(np.array(target_serie_test), 'o', label = 'Actual values')
+        ax_prediction.plot(predictions_test, 'x', label = 'Predictions')
+        ax_prediction.legend()
+        
+        figure_prediction.canvas.draw()
+        plt.pause(0.01)
+        
+        
+        ax_return = ax_prediction    
+        figure_return = figure_prediction
+        
+    elif estimator == 'LinearClassifier' or estimator == 'DNNClassifier':
+        
+        dataframe_counts_categorical = pd.DataFrame()
+        
+        list_target_test = list(target_serie_test)
+        #Numerical output
+        predictions_test = [item['class_ids'][0] for item in predictions_test]
+        
+        
+        vocabulary = target_serie_test.unique()
+        
+        dataframe_counts_categorical['list_categorical'] = vocabulary
+        count_real = []
+        count_predictions = []
+        
+        
+        for item in vocabulary:
+            
+            count_real.append(list_target_test.count(item))
+##            
+            count_predictions.append(predictions_test.count(item))
+#        
+        
+        dataframe_counts_categorical['count_real'] = np.array(count_real)
+        dataframe_counts_categorical['count_predictions'] = np.array(count_predictions)
+        plt.close('Bar count')
+        figure_bar_count = plt.figure('Bar count')
+        ax_figure = figure_bar_count.add_subplot(1,1,1)
+        ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_real', ax = ax_figure)
+        ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_predictions', ax = ax_bar, 
+                                                        color = 'red', alpha = 0.2)
+        
+        figure_bar_count.canvas.draw()
+        plt.pause(0.01)
+        
+        ax_return = ax_bar
+        figure_return = figure_bar_count
+        
+    else:
+        print('Bad estimator defined')
+
+    return figure_return, ax_return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
