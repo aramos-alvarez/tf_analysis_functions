@@ -6,13 +6,7 @@ Created on Thu Nov 14 12:01:09 2019
 @author: aramos
 """
 
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Nov 14 10:28:18 2019
 
-@author: aramos
-"""
 # =============================================================================
 # This scripts of functions is for the treatment of images given in a dataframe:
 
