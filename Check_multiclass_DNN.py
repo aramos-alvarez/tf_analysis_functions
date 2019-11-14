@@ -6,7 +6,7 @@ Created on Thu Nov 14 09:40:16 2019
 @author: aramos
 """
 
-from Image_treatment import *
+from functions_for_analysis_Images_given_rawdataframe import *
 #%%
 #donwload dataframe
 mnist_dataframe = pd.read_csv("https://download.mlcc.google.com/mledu-datasets/mnist_train_small.csv", sep=",",header=None)
