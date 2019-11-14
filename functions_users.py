@@ -217,7 +217,7 @@ def construct_feature_columns(dataframe, estimator,
             feature_categorical = tf.feature_column.categorical_column_with_vocabulary_list(feature_categorical_name,
                                                                                            vocabulary)
             
-            if estimator == 'DNNRegressor':
+            if estimator == 'DNNRegressor' or estimator == 'DNNClassifier':
                 feature_categorical_embedded = tf.feature_column.embedding_column(feature_categorical, dimension = 
                                                                         len(vocabulary))
             
@@ -276,7 +276,7 @@ def construct_feature_columns(dataframe, estimator,
                 feature_cro = tf.feature_column.crossed_column(features_crossed_temporal, 
                                                      hash_bucket_size = hash_bucket)
                 
-                if estimator == 'DNNRegressor':
+                if estimator == 'DNNRegressor' or estimator == 'DNNClassifier':
                     feature_cro = tf.feature_column.embedding_column(feature_cro, dimension = hash_bucket)
                 feature_column.append(feature_cro)
         
@@ -427,9 +427,19 @@ def model_creator(dataframe, list_numeric, bucketize, dict_variables_bucketized,
                                           optimizer = my_optimizer)
         
         
+        
+    elif estimator == 'DNNClassifier':
+        
+        print('\n Estimator:   ' + estimator + ' with hidden_units:...' + str(hidden_units))
+        model = tf.estimator.DNNClassifier(feature_columns = feature_columns,  n_classes = n_classes,
+                                           hidden_units = hidden_units, 
+                                          optimizer = my_optimizer,
+                                          config = tf.contrib.learn.RunConfig(keep_checkpoint_max = 1))
+        
+        
     
     else:
-        print('\n BAD DEFINED ESTIMATOR, use: LinearRegressor, LinearClassifier or DNNRegressor')
+        print('\n BAD DEFINED ESTIMATOR, use: LinearRegressor, LinearClassifier, DNNRegressor or DNNClassifier')
     
     
 
@@ -513,7 +523,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
     print('TRAINING MODEL...\n')
     if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
         print('Minimize Root Mean Squared Error \n')
-    elif estimator == 'LinearClassifier':
+    elif estimator == 'LinearClassifier' or estimator == 'DNNClassifier':
         print('Minimize Log Loss function (clasification problem) \n')
         label_encoder = preprocessing.LabelEncoder()
         label_encoder.fit(target_serie_training)
@@ -568,7 +578,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
             
             
         
-        elif estimator == 'LinearClassifier':
+        elif estimator == 'LinearClassifier' or estimator == 'DNNClassifier':
             
             
 
