@@ -229,7 +229,7 @@ def construct_feature_columns(dataframe, estimator,
             
             if estimator == 'DNNRegressor' or estimator == 'DNNClassifier':
                 feature_categorical_embedded = tf.feature_column.embedding_column(feature_categorical, dimension = 
-                                                                        len(vocabulary))
+                                                                        len(vocabulary)**0.25)
             
                 feature_column.append(feature_categorical_embedded)
             else:
