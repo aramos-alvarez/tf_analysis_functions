@@ -22,6 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from sklearn import metrics, preprocessing
+
+from sklearn.utils.multiclass import unique_labels
 from IPython import display
 import pandas as pd
 from tensorflow.python.data import Dataset
@@ -44,7 +46,7 @@ def correlation_figure(dataframe):
     plt.close('Matrix Correlation')
     figure_corr = plt.figure('Matrix Correlation')
     ax_corr = figure_corr.add_subplot(1,1,1)
-    _ = sns.heatmap(correlation, ax = ax_corr, annot = True)
+    _ = sns.heatmap(correlation, ax = ax_corr, annot = True, cmap = 'PuOr')
     figure_corr.canvas.draw()
     plt.pause(0.01)
     return ax_corr
@@ -645,8 +647,17 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
     return model
 
 
-
-def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test, how_many, shuffle_test = False):
+# =============================================================================
+# Plotting predictions
+# =============================================================================
+def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test, target_name, how_many, shuffle_test = False):
+    
+    print('In the case of classification problem the prediction will be this one with higher probability!')
+    #this function will return a dataframe with the predictions and the real values
+    #IMPORTANT: In the case of classification problem the prediction will be this one with higher probability!
+    
+    dataframe_with_predict = pd.DataFrame()
+    dataframe_with_predict['Real_values'] = np.array(target_serie_test)
     print('Performing prediction with the model: \n-------')
     
     
@@ -672,6 +683,7 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
     if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
         predictions_test = np.array([item['predictions'][0] for item in predictions_test])
         
+        dataframe_with_predict['Predictions'] = predictions_test
         print('Creating Figure object for testing...')
         plt.close('Predictions Vs Actual values')
         figure_prediction = plt.figure('Predictions Vs Actual values')
@@ -696,7 +708,7 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         #Numerical output
         predictions_test = [item['class_ids'][0] for item in predictions_test]
         
-        
+        dataframe_with_predict['Predictions'] = np.array(predictions_test)
         vocabulary = target_serie_test.unique()
         
         dataframe_counts_categorical['list_categorical'] = vocabulary
@@ -720,6 +732,8 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_predictions', ax = ax_bar, 
                                                         color = 'red', alpha = 0.2)
         
+        ax_bar.set_ylabel(target_name)
+        ax_bar.grid(color = 'green', linestyle='--')
         figure_bar_count.canvas.draw()
         plt.pause(0.01)
         
@@ -729,32 +743,166 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
     else:
         print('Bad estimator defined')
 
-    return figure_return, ax_return
+    return dataframe_with_predict
+
+
+
+def plot_confusion_matrix(y_true, y_pred,
+                          normalize=False,
+                          title=None,
+                          cmap=plt.cm.Blues):
+    
+    
+    
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    
+#    Ex.
+#    target = ['a', 'b', 'c', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a']
+#
+#    prediction = ['a', 'b', 'c', 'b', 'a', 'a', 'a', 'a', 'a', 'a', 'c']
+#    plot_confusion_matrix(target, prediction, normalize = True, title = 'Normalized', cmap = plt.cm.Oranges)
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
+
+    # Compute confusion matrix
+    cm = metrics.confusion_matrix(y_true, y_pred)
+    # Only use the labels that appear in the data
+    classes = list(unique_labels(y_true, y_pred))
+    display.display(classes)
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+    
+    plt.close('Confusion matrix')
+    fig = plt.figure('Confusion matrix')
+    ax = fig.add_subplot(1,1,1)
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
+    # We want to show all ticks...
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           # ... and label them with the respective list entries
+           xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
+#
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    fig.canvas.draw()
+    plt.pause(0.1)
+    return ax
+
+
+
+def plot_ROC_curve(model, feature_dataframe_test, target_serie_test):
+       
+    #This is done for binary classification
+    num_epochs = 1
+    shuffle = False
+    batch_size = 1
+    buffer_size = 1000
+    prediction_eval_input = lambda: my_input_fn(feature_dataframe_test , target_serie_test, 
+                                     batch_size, num_epochs,shuffle, buffer_size)    
+
+    prediction_eval = model_Titanic.predict(prediction_eval_input)
+    positive_score = np.array([item['probabilities'][1] for item in prediction_eval])
+    
+    fpr, tpr, threshold = metrics.roc_curve(target_serie_test, positive_score)
+    
+    plt.close('ROC curve')
+    figure_roc = plt.figure('ROC curve')
+    ax_roc = figure_roc.add_subplot(1,1,1)
+    ax_roc.plot(fpr, tpr)
+    ax_roc.plot([0, 1], [0, 1])
+    ax_roc.grid()
+    figure_roc.canvas.draw()
+    plt.pause(0.1)
+    return ax_roc
 
 
 
 
 
+    
+    
+def evaluation_model(model, feature_eval, target_eval):
+
+    shuffle = False
+    num_epochs = 1
+    batch_size = 1
+    buffer_shuffle = None
+    prediction_eval_input = lambda: my_input_fn(feature_eval, target_eval, batch_size, 
+                                                num_epochs, shuffle, buffer_shuffle)
+    
+    evaluation = model.evaluate(prediction_eval_input)
+    display.display(evaluation)
+    return evaluation
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def give_variables_linear_correlated(dataframe, correlation_threshold = 0.9, remove_from_dataframe = False):
+    
+    #Retrun a list with variables correlated to remove and a sumary ('record_collinear'), and the dataframe
+    
+    #ex: to_drop, record_collinear, dataframe = give_variables_linear_correlated(dataframe, correlation_threshold = 0.9, 
+    #                                                                        remove_from_dataframe = True)
+    
+    corr_matrix = dataframe.corr()
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k = 1).astype(np.bool))
+    to_drop = [column for column in upper.columns if any(upper[column].abs() > correlation_threshold)]
+    display.display(to_drop)
+    
+    
+    
+    record_collinear = pd.DataFrame(columns = ['drop_feature', 'corr_feature', 'corr_value'])
+    
+            # Iterate through the columns to drop to record pairs of correlated features
+    for column in to_drop:
+    
+        # Find the correlated features
+        corr_features = list(upper.index[upper[column].abs() > correlation_threshold])
+    
+        # Find the correlated values
+        corr_values = list(upper[column][upper[column].abs() > correlation_threshold])
+        drop_features = [column for _ in range(len(corr_features))]    
+    
+        # Record the information (need a temp df for now)
+        temp_df = pd.DataFrame.from_dict({'drop_feature': drop_features,
+                                         'corr_feature': corr_features,
+                                         'corr_value': corr_values})
+    
+        # Add to dataframe
+        record_collinear = record_collinear.append(temp_df, ignore_index = True)
+    
+    
+    if remove_from_dataframe:
+        for feature in to_drop:
+            dataframe.pop(feature)
+    
+    
+    return to_drop, record_collinear, dataframe
 
 
 
