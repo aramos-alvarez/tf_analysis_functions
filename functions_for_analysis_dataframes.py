@@ -52,6 +52,52 @@ def correlation_figure(dataframe):
     return ax_corr
 
 
+
+def give_variables_linear_correlated(dataframe, correlation_threshold = 0.9, remove_from_dataframe = False):
+    
+    #Retrun a list with variables correlated to remove and a sumary ('record_collinear'), and the dataframe
+    
+    #ex: to_drop, record_collinear, dataframe = give_variables_linear_correlated(dataframe, correlation_threshold = 0.9, 
+    #                                                                        remove_from_dataframe = True)
+    
+    corr_matrix = dataframe.corr()
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k = 1).astype(np.bool))
+    to_drop = [column for column in upper.columns if any(upper[column].abs() > correlation_threshold)]
+    display.display(to_drop)
+    
+    
+    
+    record_collinear = pd.DataFrame(columns = ['drop_feature', 'corr_feature', 'corr_value'])
+    
+            # Iterate through the columns to drop to record pairs of correlated features
+    for column in to_drop:
+    
+        # Find the correlated features
+        corr_features = list(upper.index[upper[column].abs() > correlation_threshold])
+    
+        # Find the correlated values
+        corr_values = list(upper[column][upper[column].abs() > correlation_threshold])
+        drop_features = [column for _ in range(len(corr_features))]    
+    
+        # Record the information (need a temp df for now)
+        temp_df = pd.DataFrame.from_dict({'drop_feature': drop_features,
+                                         'corr_feature': corr_features,
+                                         'corr_value': corr_values})
+    
+        # Add to dataframe
+        record_collinear = record_collinear.append(temp_df, ignore_index = True)
+    
+    
+    if remove_from_dataframe:
+        for feature in to_drop:
+            dataframe.pop(feature)
+    
+    
+    return to_drop, record_collinear, dataframe
+
+
+
+
 def scatter_matrix(dataframe):
     plt.close('Scatter Matrix')
     print('Scatter Matrix')
@@ -97,6 +143,16 @@ def scaling_dataframe(dataframe):
     
     return dataframe
     
+
+
+
+def preprocess_dataframe_simple_way(dataframe, target_name):
+    
+    dataframe_temp = dataframe.copy()
+    target = dataframe_temp.pop(target_name)
+    
+    return dataframe_temp, target
+
 
 
 
@@ -681,16 +737,18 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
     predictions_test = model.predict(input_fn = predict_test_input)
     
     if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
+        
+        print(estimator)
         predictions_test = np.array([item['predictions'][0] for item in predictions_test])
         
-        dataframe_with_predict['Predictions'] = predictions_test
+#        dataframe_with_predict['Predictions'] = predictions_test
         print('Creating Figure object for testing...')
         plt.close('Predictions Vs Actual values')
         figure_prediction = plt.figure('Predictions Vs Actual values')
         ax_prediction = figure_prediction.add_subplot(1,1,1)
         
-        ax_prediction.plot(np.array(target_serie_test), 'o', label = 'Actual values')
-        ax_prediction.plot(predictions_test, 'x', label = 'Predictions')
+        ax_prediction.plot(np.array(target_serie_test), 'o-', label = 'Actual values')
+        ax_prediction.plot(predictions_test, 'x-', label = 'Predictions')
         ax_prediction.legend()
         
         figure_prediction.canvas.draw()
@@ -862,47 +920,7 @@ def evaluation_model(model, feature_eval, target_eval):
 
 
 
-def give_variables_linear_correlated(dataframe, correlation_threshold = 0.9, remove_from_dataframe = False):
-    
-    #Retrun a list with variables correlated to remove and a sumary ('record_collinear'), and the dataframe
-    
-    #ex: to_drop, record_collinear, dataframe = give_variables_linear_correlated(dataframe, correlation_threshold = 0.9, 
-    #                                                                        remove_from_dataframe = True)
-    
-    corr_matrix = dataframe.corr()
-    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k = 1).astype(np.bool))
-    to_drop = [column for column in upper.columns if any(upper[column].abs() > correlation_threshold)]
-    display.display(to_drop)
-    
-    
-    
-    record_collinear = pd.DataFrame(columns = ['drop_feature', 'corr_feature', 'corr_value'])
-    
-            # Iterate through the columns to drop to record pairs of correlated features
-    for column in to_drop:
-    
-        # Find the correlated features
-        corr_features = list(upper.index[upper[column].abs() > correlation_threshold])
-    
-        # Find the correlated values
-        corr_values = list(upper[column][upper[column].abs() > correlation_threshold])
-        drop_features = [column for _ in range(len(corr_features))]    
-    
-        # Record the information (need a temp df for now)
-        temp_df = pd.DataFrame.from_dict({'drop_feature': drop_features,
-                                         'corr_feature': corr_features,
-                                         'corr_value': corr_values})
-    
-        # Add to dataframe
-        record_collinear = record_collinear.append(temp_df, ignore_index = True)
-    
-    
-    if remove_from_dataframe:
-        for feature in to_drop:
-            dataframe.pop(feature)
-    
-    
-    return to_drop, record_collinear, dataframe
+
 
 
 
