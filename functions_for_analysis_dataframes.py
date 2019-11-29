@@ -29,6 +29,7 @@ import pandas as pd
 from tensorflow.python.data import Dataset
 import seaborn as sns
 import time
+from tensorflow.keras import layers
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 
@@ -49,7 +50,7 @@ def correlation_figure(dataframe):
     _ = sns.heatmap(correlation, ax = ax_corr, annot = True, cmap = 'PuOr')
     figure_corr.canvas.draw()
     plt.pause(0.01)
-    return ax_corr
+    return figure_corr
 
 
 
@@ -107,7 +108,7 @@ def scatter_matrix(dataframe):
     _ = pd.plotting.scatter_matrix(dataframe, ax = ax_scatter)
     figure_scatter.canvas.draw()
     plt.pause(0.01)
-    return ax_scatter
+    return figure_scatter
 
 
 
@@ -121,7 +122,7 @@ def plot_categorical_counts(dftrain, column_categorical_name):
     _ = dftrain[column_categorical_name].value_counts().plot(ax = ax_categorical_sex, kind = 'barh')
     figure_categorical_sex.canvas.draw()
     plt.pause(0.01)
-    return ax_categorical_sex
+    return figure_categorical_sex
 
 
 
@@ -133,6 +134,16 @@ def scaling_serie(serie):
     serie = serie.apply(lambda x: 2*((x - serie_min) / scale - 0.5))
     
     return serie
+
+
+
+def inv_scaling_serie(serie, serie_min, serie_max):
+
+    scale = abs(serie_max - serie_min)
+    serie = serie.apply(lambda x: (x  /2 + 0.5)*scale + serie_min)
+    
+    return serie
+
 
 
 def scaling_dataframe(dataframe):
@@ -349,7 +360,7 @@ def construct_feature_columns(dataframe, estimator,
     else:
         print('NOT CROSSED FEATURES')
         
-    return set(feature_column)
+    return set(feature_column) 
 
 
 
@@ -473,7 +484,7 @@ def model_creator(dataframe, list_numeric, bucketize, dict_variables_bucketized,
 
     
     
-    display.display(feature_columns)
+    display.display(str(feature_columns))
     if estimator == 'LinearRegressor':
         
         print('\n Estimator:   ' + estimator)
@@ -509,7 +520,7 @@ def model_creator(dataframe, list_numeric, bucketize, dict_variables_bucketized,
     
     
 
-    return model
+    return model, feature_columns
 
 
 
@@ -569,7 +580,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
     #MODEL CREATION
     
     
-    model = model_creator(feature_dataframe_training , list_numeric, bucketize, dict_variables_bucketized, 
+    model, feature_columns = model_creator(feature_dataframe_training , list_numeric, bucketize, dict_variables_bucketized, 
                   list_categorical, list_crossed_features, hash_bucket_size, 
                   estimator, learning_rate, clip_gradient, optimizer, hidden_units,
                   regularization ,  regularization_strength )
@@ -586,7 +597,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
     log_loss_training_list = []
     log_loss_validation_list = []
     #TRAINING THE MODEL BY STEPS
-    print('TRAINING MODEL...\n')
+    print('TRAINING MODEL:...\n' + 'target:...' + target_serie.name)
     if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
         print('Minimize Root Mean Squared Error \n')
     elif estimator == 'LinearClassifier' or estimator == 'DNNClassifier':
@@ -613,7 +624,8 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
         
         if estimator == 'LinearRegressor' or estimator == 'DNNRegressor':
             
-            ax_training.set_title('Root Mean Squared Error')
+            
+            name_ylabel = 'Root Mean Squared Error'
             prediction_training = np.array([item['predictions'][0] for item in prediction_training])
             prediction_validation = np.array([item['predictions'][0] for item in prediction_validation])
             
@@ -649,8 +661,7 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
             
 
             
-            
-            ax_training.set_title('Log Loss')
+            name_ylabel = 'Log Loss'
             
             prediction_training = np.array([item['class_ids'][0] for item in prediction_training])
             prediction_validation = np.array([item['class_ids'][0] for item in prediction_validation])
@@ -697,26 +708,50 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
         
         
     ax_training.legend()        
+    ax_training.grid(linestyle = '--', alpha = 0.3)
+    ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/1.7, 'Target: ' + target_serie.name , size = 15, color = 'darkred')
     
+    
+    inform_numeric = str(list_numeric) 
+    inform_categorical = str(list_categorical)
+    inform_crosses = str(list_crossed_features)
+    ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2, 'Numeric Features: ' + inform_numeric, size = 8, color = 'darkgreen')
+    
+    ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2.05, 'Categorical Features: ' + inform_categorical, size = 8, color = 'darkblue')
+    
+    
+    ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2.1, 'Crosses Features: ' + inform_crosses, size = 8, color = 'violet')
+    
+    ax_training.set_title('Estimator:' + estimator)
+    ax_training.set_xlabel('Period (a.u.)')
+    ax_training.set_ylabel(name_ylabel)
     
     print('MODEL TRAINED!!')
-    return model
+    return model, figure_training
 
 
 # =============================================================================
 # Plotting predictions
 # =============================================================================
-def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test, target_name, how_many, shuffle_test = False):
+def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test, target_name, how_many, shuffle_test = False, scaled = False):
     
     print('In the case of classification problem the prediction will be this one with higher probability!')
     #this function will return a dataframe with the predictions and the real values
     #IMPORTANT: In the case of classification problem the prediction will be this one with higher probability!
     
-    dataframe_with_predict = pd.DataFrame()
-    dataframe_with_predict['Real_values'] = np.array(target_serie_test)
+
     print('Performing prediction with the model: \n-------')
     
-    
+    if scaled:
+        
+        print('Plot with data target scaled \n' )
+        
+        
+        
     feature_dataframe_test = feature_dataframe_test.head(how_many)
     target_serie_test = target_serie_test.head(how_many)
     
@@ -724,7 +759,10 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         feature_dataframe_test = feature_dataframe_test.reindex(np.random.permutation(feature_dataframe_test.index))
         target_serie_test = target_serie_test.reindex(np.random.permutation(target_serie_test.index))
     
-
+    
+    dataframe_with_predict = pd.DataFrame()
+    dataframe_with_predict['Real_values'] = np.array(target_serie_test)
+    
     
     num_epochs = 1
     shuffle = False
@@ -741,7 +779,9 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         print(estimator)
         predictions_test = np.array([item['predictions'][0] for item in predictions_test])
         
-#        dataframe_with_predict['Predictions'] = predictions_test
+       
+        
+        dataframe_with_predict['Predictions'] = predictions_test
         print('Creating Figure object for testing...')
         plt.close('Predictions Vs Actual values')
         figure_prediction = plt.figure('Predictions Vs Actual values')
@@ -754,10 +794,12 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         figure_prediction.canvas.draw()
         plt.pause(0.01)
         
-        
+        if scaled:
+            ax_prediction.set_title('Data Scaled')
         ax_return = ax_prediction    
         figure_return = figure_prediction
         
+        dataframe_with_predict['Predictions'] = predictions_test
     elif estimator == 'LinearClassifier' or estimator == 'DNNClassifier':
         
         dataframe_counts_categorical = pd.DataFrame()
@@ -801,7 +843,7 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
     else:
         print('Bad estimator defined')
 
-    return dataframe_with_predict
+    return dataframe_with_predict, figure_return
 
 
 
