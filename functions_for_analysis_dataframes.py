@@ -165,7 +165,24 @@ def preprocess_dataframe_simple_way(dataframe, target_name):
     return dataframe_temp, target
 
 
-
+def type_features(dataframe_features):
+    "Given a dataframe the function"
+    "Return"
+    " a Dataframe with the name of the feature and the type: numerical or categorical"
+    
+    total_feature_names_list = list(dataframe_features.dtypes.keys())
+    
+    total_type_features = list(dataframe_features.dtypes)
+    
+    dataframe_with_list_type = pd.DataFrame()
+    
+    dataframe_with_list_type['Feature'] = total_feature_names_list
+    
+    dataframe_with_list_type['type'] = total_type_features
+    dataframe_with_list_type['type'] = dataframe_with_list_type['type'].replace(['int64', 'float64'], 'numerical')
+    dataframe_with_list_type['type'] = dataframe_with_list_type['type'].replace('object', 'categorical')
+    
+    return dataframe_with_list_type
 
 
 
@@ -710,21 +727,21 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
     ax_training.legend()        
     ax_training.grid(linestyle = '--', alpha = 0.3)
     ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
-                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/1.7, 'Target: ' + target_serie.name , size = 15, color = 'darkred')
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2, 'Target: ' + target_serie.name , size = 15, color = 'darkred')
     
     
     inform_numeric = str(list_numeric) 
     inform_categorical = str(list_categorical)
     inform_crosses = str(list_crossed_features)
     ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
-                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2, 'Numeric Features: ' + inform_numeric, size = 8, color = 'darkgreen')
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2.05, 'Numeric Features: ' + inform_numeric, size = 8, color = 'darkgreen')
     
     ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
-                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2.05, 'Categorical Features: ' + inform_categorical, size = 8, color = 'darkblue')
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2.10, 'Categorical Features: ' + inform_categorical, size = 8, color = 'darkblue')
     
     
     ax_training.text((ax_training.get_xlim()[0]+ax_training.get_xlim()[1])/2, 
-                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2.1, 'Crosses Features: ' + inform_crosses, size = 8, color = 'violet')
+                     (ax_training.get_ylim()[0]+ax_training.get_ylim()[1])/2.15, 'Crosses Features: ' + inform_crosses, size = 8, color = 'violet')
     
     ax_training.set_title('Estimator:' + estimator)
     ax_training.set_xlabel('Period (a.u.)')
@@ -737,14 +754,17 @@ def training_model(steps, periods, feature_dataframe, target_serie, percent_trai
 # =============================================================================
 # Plotting predictions
 # =============================================================================
-def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test, target_name, how_many, shuffle_test = False, scaled = False):
+def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test, target_name, how_many,
+                     shuffle_test = False, scaled = False):
     
     print('In the case of classification problem the prediction will be this one with higher probability!')
+    print('Try : plot_prediction_with_threshold function for threshold problems in classification stuff')
     #this function will return a dataframe with the predictions and the real values
     #IMPORTANT: In the case of classification problem the prediction will be this one with higher probability!
     
 
     print('Performing prediction with the model: \n-------')
+    
     
     if scaled:
         
@@ -752,12 +772,14 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         
         
         
-    feature_dataframe_test = feature_dataframe_test.head(how_many)
-    target_serie_test = target_serie_test.head(how_many)
+
     
     if shuffle_test:
         feature_dataframe_test = feature_dataframe_test.reindex(np.random.permutation(feature_dataframe_test.index))
         target_serie_test = target_serie_test.reindex(np.random.permutation(target_serie_test.index))
+
+    feature_dataframe_test = feature_dataframe_test.head(how_many)
+    target_serie_test = target_serie_test.head(how_many)
     
     
     dataframe_with_predict = pd.DataFrame()
@@ -800,6 +822,7 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         figure_return = figure_prediction
         
         dataframe_with_predict['Predictions'] = predictions_test
+        
     elif estimator == 'LinearClassifier' or estimator == 'DNNClassifier':
         
         dataframe_counts_categorical = pd.DataFrame()
@@ -828,14 +851,16 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
         plt.close('Bar count')
         figure_bar_count = plt.figure('Bar count')
         ax_figure = figure_bar_count.add_subplot(1,1,1)
-        ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_real', ax = ax_figure)
+        ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_real', ax = ax_figure, edgecolor='black',)
         ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_predictions', ax = ax_bar, 
-                                                        color = 'red', alpha = 0.2)
+                                                        color = 'red', alpha = 0.2,  hatch="/")
         
         ax_bar.set_ylabel(target_name)
         ax_bar.grid(color = 'green', linestyle='--')
         figure_bar_count.canvas.draw()
         plt.pause(0.01)
+        
+
         
         ax_return = ax_bar
         figure_return = figure_bar_count
@@ -846,10 +871,97 @@ def plot_predictions(model, estimator, feature_dataframe_test, target_serie_test
     return dataframe_with_predict, figure_return
 
 
+def plot_prediction_with_threshold(model, estimator, feature_dataframe_test, target_serie_test, target_name, how_many,
+                     threshold = 0.5, shuffle_test = False, scaled = False):
+    "This function return the prediction of the model, depending on a threshold of the positive probability"
+    "only for classification problems of two classes"
+    figure_return = None
+    if estimator == 'LinearClassifier' or estimator == 'DNNClassifier':
+        print('Performing prediction with the model: \n-------')
+    
+        if scaled:
+            
+            print('Plot with data target scaled \n' )
+            
+    
+        
+        if shuffle_test:
+            feature_dataframe_test = feature_dataframe_test.reindex(np.random.permutation(feature_dataframe_test.index))
+            target_serie_test = target_serie_test.reindex(np.random.permutation(target_serie_test.index))
+    
+        feature_dataframe_test = feature_dataframe_test.head(how_many)
+        target_serie_test = target_serie_test.head(how_many)
+        
+        
+        dataframe_with_predict = pd.DataFrame()
+        dataframe_with_predict['Real_values'] = np.array(target_serie_test)
+        
+        
+        num_epochs = 1
+        shuffle = False
+        batch_size = 1
+        buffer_size = 1000
+        predict_test_input = lambda: my_input_fn(feature_dataframe_test , target_serie_test, 
+                                         batch_size, num_epochs,shuffle, buffer_size)
+        
+        
+        dataframe_counts_categorical = pd.DataFrame()
+        
+        list_target_test = list(target_serie_test)
+        
+
+        print('Performing prediction.........')
+        predictions_test = model.predict(input_fn = predict_test_input)
+        predictions_test = [item['probabilities'][1] > threshold for item in predictions_test]
+        
+        dataframe_with_predict['Predictions'] = np.array(predictions_test).astype(int)
+        vocabulary = target_serie_test.unique()
+        
+        dataframe_counts_categorical['list_categorical'] = vocabulary
+        count_real = []
+        count_predictions = []
+        
+        
+        for item in vocabulary:
+            
+            count_real.append(list_target_test.count(item))
+##            
+            count_predictions.append(predictions_test.count(item))
+#        
+        
+        dataframe_counts_categorical['count_real'] = np.array(count_real)
+        dataframe_counts_categorical['count_predictions'] = np.array(count_predictions)
+        plt.close('Bar count threshold')
+        figure_bar_count = plt.figure('Bar count threshold')
+        ax_figure = figure_bar_count.add_subplot(1,1,1)
+        
+        ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_real', ax = ax_figure, edgecolor='black',)
+        ax_bar = dataframe_counts_categorical.plot.barh('list_categorical', 'count_predictions', ax = ax_bar, 
+                                                        color = 'red', alpha = 0.2,  hatch="/")
+        
+        ax_bar.set_ylabel(target_name)
+        ax_bar.grid(color = 'green', linestyle='--')
+        figure_bar_count.canvas.draw()
+        
+        plt.pause(0.01)
+        
+
+        
+        
+        figure_return = figure_bar_count
+        
+        
+    else:
+        
+        print('Bad estimator defined')
+        
+    return dataframe_with_predict, figure_return
+        
+
 
 def plot_confusion_matrix(y_true, y_pred,
                           normalize=False,
-                          title=None,
+                          title= None,
                           cmap=plt.cm.Blues):
     
     
@@ -912,7 +1024,7 @@ def plot_confusion_matrix(y_true, y_pred,
     fig.tight_layout()
     fig.canvas.draw()
     plt.pause(0.1)
-    return ax
+    return cm, fig
 
 
 
@@ -926,7 +1038,7 @@ def plot_ROC_curve(model, feature_dataframe_test, target_serie_test):
     prediction_eval_input = lambda: my_input_fn(feature_dataframe_test , target_serie_test, 
                                      batch_size, num_epochs,shuffle, buffer_size)    
 
-    prediction_eval = model_Titanic.predict(prediction_eval_input)
+    prediction_eval = model.predict(prediction_eval_input)
     positive_score = np.array([item['probabilities'][1] for item in prediction_eval])
     
     fpr, tpr, threshold = metrics.roc_curve(target_serie_test, positive_score)
@@ -937,9 +1049,11 @@ def plot_ROC_curve(model, feature_dataframe_test, target_serie_test):
     ax_roc.plot(fpr, tpr)
     ax_roc.plot([0, 1], [0, 1])
     ax_roc.grid()
+    ax_roc.set_xlabel('False Positive Rate')
+    ax_roc.set_ylabel('True Positive Rate')
     figure_roc.canvas.draw()
     plt.pause(0.1)
-    return ax_roc
+    return figure_roc, fpr, tpr, threshold
 
 
 
@@ -962,7 +1076,10 @@ def evaluation_model(model, feature_eval, target_eval):
 
 
 
+#%%
 
+if __name__ == '__main__':
+    pass
 
 
 
